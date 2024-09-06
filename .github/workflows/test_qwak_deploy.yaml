@@ -1,0 +1,54 @@
+name: Deploy Test Qwak Model
+on:
+  schedule:
+    - cron: "35 19 * * 1-5"
+    - cron: "45 19 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      qwakModelDirectory:
+        type: choice
+        description: "Qwak model"
+        required: true
+        options:
+          - plan_recommendation_generalized
+      qwakEnvironment:
+        type: choice
+        description: "Qwak environment"
+        required: true
+        options:
+          - nayya
+          - nayya.prod
+      openEnrollmentConfiguration:
+        type: boolean
+        description: "Use open enrollment prod resources"
+        required: true
+        default: false
+env:
+  qwakModelDirectory: ${{ github.event.inputs.qwakModelDirectory || 'plan_recommendation_generalized_test' }}
+  qwakEnvironment: ${{ github.event.inputs.qwakEnvironment || 'nayya.test' }}
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      status: ${{ steps.set_status.outputs.status }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python 3.9.12
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.9.12
+      - name: Load Dynamic Configuration Default
+        id: load_config_default
+        if: ${{ (github.event.inputs.openEnrollmentConfiguration == 'false') || (github.event.schedule == '45 19 * * 1-5') }} # the last scheduler turn off the open enrollment configuration
+        run: |
+          CONFIG_PATH="./.infra/deployments/qwak/${{ env.qwakModelDirectory }}_${{ env.qwakEnvironment }}.yaml"
+          echo "Loading configuration from $CONFIG_PATH"
+          echo "CONFIG_PATH=$CONFIG_PATH" >> $GITHUB_ENV
+
+      - name: Load Dynamic Configuration Open Enrollment
+        id: load_config_open_enrollment
+        if: ${{ (github.event.inputs.openEnrollmentConfiguration == 'true') || (github.event.schedule == '35 19 * * 1-5') }} # the first scheduler turn on the open enrollment configuration
+        run: |
+          CONFIG_PATH="./.infra/deployments/qwak/${{ env.qwakModelDirectory }}_${{ env.qwakEnvironment }}.open_enrollment.yaml"
+          echo "Loading configuration from $CONFIG_PATH"
+          echo "CONFIG_PATH=$CONFIG_PATH" >> $GITHUB_ENV
